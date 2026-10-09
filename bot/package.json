@@ -1,0 +1,9 @@
+{
+  "name": "uc-report-hub-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Collects tagged script reports from the Undercards void chat log.",
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  }
+}

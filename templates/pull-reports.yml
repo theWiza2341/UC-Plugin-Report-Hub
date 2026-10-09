@@ -1,0 +1,36 @@
+# Template for a project that wants its reports in its own repo.
+# Copy to .github/workflows/pull-reports.yml in YOUR repo, set HUB and TAG,
+# and write templates/transform.js's transform() for your format.
+# Needs: Settings > Actions > General > Workflow permissions "Read and write".
+# Uses your repo's own token only; nothing is shared with the hub.
+name: Pull reports from the UC report hub
+
+on:
+  schedule:
+    - cron: "47 8 * * *" # daily, after the hub's 07:17 UTC run
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HUB: OWNER/HUB-REPO   # the hub repo, e.g. theWiza2341/uc-report-hub
+  TAG: XX               # your tag from the hub's registry.json
+  OUT: reports          # where the result goes in your repo
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pull and transform
+        run: node .github/report-hub/transform.js
+      - name: Save
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$OUT"
+          if git diff --cached --quiet; then echo "Nothing new."; else git commit -q -m "Reports from the hub [auto]"; git push -q; fi
