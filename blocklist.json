@@ -1,0 +1,5 @@
+{
+  "_help": "Names whose reports are dropped (case doesn't matter). 'all' = every project; add a tag key (e.g. 'WZ') for one project only. Takes effect on the next run; reports already stored stay until removed by hand.",
+  "all": [],
+  "WZ": []
+}

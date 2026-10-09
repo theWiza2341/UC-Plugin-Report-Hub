@@ -34,7 +34,7 @@ reports/WZ/2026-10.jsonl
 ```
 
 ```json
-{"id":"1557694041292800001","at":"2026-10-08T10:00:00.000Z","tag":"WZ","v":1,"from":"V7cCysrg4D9Z","payload":"261008 161@28.0 20@PA"}
+{"id":"1557694041292800001","at":"2026-10-08T10:00:00.000Z","tag":"WZ","v":1,"from":"SomePlayer","payload":"261008 161@28.0 20@PA"}
 ```
 
 | Field | Meaning |
@@ -42,12 +42,12 @@ reports/WZ/2026-10.jsonl
 | `id` | Unique per report (the Discord message id, with `.n` added when one log post held several chat lines). Use it to skip reports you've already read. |
 | `at` | When it was posted. |
 | `v` | Your format version. |
-| `from` | The sender, as a tag. The same player always gets the same tag in your project, and a different tag in every other project. It's never their name. |
+| `from` | The sender's name, as the chat log shows it. Reports are public, and so are the names on them. |
 | `payload` | Exactly what came after `#XX1 `. |
 
 The files update once a day, at about 07:20 UTC. Read them from `https://raw.githubusercontent.com/<hub repo>/main/reports/<TAG>/`.
 
-**Limits per player:** 30 reports a day per project. More than that is dropped.
+**Limits per player:** 30 reports a day per project. More than that is dropped. Names on the hub's `blocklist.json` (for every project, or just yours) are dropped too. Ask the hub owner to add a name.
 
 ## Joining
 

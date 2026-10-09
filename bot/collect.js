@@ -11,17 +11,17 @@
 // Environment:
 //   BOT_TOKEN        the bot's token (repo secret)
 //   VOID_CHANNEL_ID  the void log channel's id (repo variable)
-//   HUB_SALT         any long random text (repo secret), so sender tags can't be
-//                    matched to usernames by guessing
 //
 // What's stored per report: the Discord message id, its time, the tag and
-// version, the payload exactly as sent, and a sender tag that is different for
-// every project. No usernames, and nothing from messages without a valid
-// registered header: those are read and dropped.
+// version, the payload exactly as sent, and the sender's name as the log shows
+// it (so spam can be traced and blocked). Nothing from messages without a
+// valid registered header: those are read and dropped.
+//
+// blocklist.json: names whose reports are dropped, for every project ("all")
+// or one tag ("WZ"). Matching ignores case.
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const { parseReport, looksLikeReport } = require("./format.js");
 const { readLogMessage } = require("./log-format.js");
 
@@ -41,8 +41,14 @@ const snowflakeAt = (date) => String((BigInt(Date.parse(`${date}T00:00:00Z`)) - 
 const timeOf = (id) => new Date(Number((BigInt(id) >> 22n) + DISCORD_EPOCH)).toISOString();
 const later = (a, b) => (!a ? b : !b ? a : BigInt(a) >= BigInt(b) ? a : b);
 
-function senderTag(salt, tag, sender) {
-  return crypto.createHash("sha256").update(`${salt}\n${tag}\n${String(sender).toLowerCase()}`).digest("base64url").slice(0, 12);
+const nameKey = (name) => String(name || "?").trim().toLowerCase();
+
+// blocklist.json -> (tag, name) => true if blocked
+function loadBlocklist() {
+  const b = readJson(path.join(ROOT, "blocklist.json"), {});
+  const sets = {};
+  Object.entries(b).forEach(([k, list]) => { if (Array.isArray(list)) sets[k] = new Set(list.map(nameKey)); });
+  return (tag, name) => !!((sets.all && sets.all.has(nameKey(name))) || (sets[tag] && sets[tag].has(nameKey(name))));
 }
 
 // Every message after `after`, oldest first.
@@ -85,7 +91,7 @@ function loadIds(dir, perDay) {
         if (!l) return;
         const r = JSON.parse(l);
         ids.add(r.id);
-        const k = `${r.tag}|${r.from}|${String(r.at).slice(0, 10)}`;
+        const k = `${r.tag}|${nameKey(r.from)}|${String(r.at).slice(0, 10)}`;
         perDay.set(k, (perDay.get(k) || 0) + 1);
       } catch (e) { /* skip */ }
     });
@@ -103,7 +109,6 @@ function writeIndex(tag) {
 async function main() {
   const token = process.env.BOT_TOKEN;
   const channelId = (process.env.VOID_CHANNEL_ID || "").trim();
-  const salt = process.env.HUB_SALT || "";
   if (!token) throw new Error("BOT_TOKEN is missing (repo secret).");
   if (!channelId) throw new Error("VOID_CHANNEL_ID is missing (repo variable).");
 
@@ -116,7 +121,7 @@ async function main() {
     const channel = await client.channels.fetch(channelId);
     if (!channel || !channel.messages) throw new Error(`Can't read channel ${channelId}: check the bot can see it and read its history.`);
     if (flag("probe")) { await probe(channel); return; }
-    if (salt.length < 16) throw new Error("HUB_SALT is missing or shorter than 16 characters (repo secret).");
+    const blocked = loadBlocklist();
 
     const since = arg("since");
     const earliest = Object.values(registry).map((p) => p.since).filter(Boolean).sort()[0] || new Date().toISOString().slice(0, 10);
@@ -125,7 +130,7 @@ async function main() {
 
     const seen = new Map(); // tag -> Set of stored ids
     const perDay = new Map();
-    const stats = { read: 0, reports: 0, stored: 0, repeats: 0, unregistered: 0, invalid: 0, overLimit: 0 };
+    const stats = { read: 0, reports: 0, stored: 0, repeats: 0, unregistered: 0, invalid: 0, overLimit: 0, blocked: 0 };
     const add = new Map(); // file -> lines
     let last = state.lastId;
 
@@ -144,8 +149,9 @@ async function main() {
         if (!seen.has(r.tag)) seen.set(r.tag, loadIds(dir, perDay));
         if (seen.get(r.tag).has(id)) { stats.repeats++; return; }
         const at = timeOf(m.id);
-        const from = senderTag(salt, r.tag, msg.sender || "?");
-        const dayKey = `${r.tag}|${from}|${at.slice(0, 10)}`;
+        const from = String(msg.sender || "?").trim();
+        if (blocked(r.tag, from)) { stats.blocked++; return; }
+        const dayKey = `${r.tag}|${nameKey(from)}|${at.slice(0, 10)}`;
         perDay.set(dayKey, (perDay.get(dayKey) || 0) + 1);
         if (perDay.get(dayKey) > PER_SENDER_PER_DAY) { stats.overLimit++; return; }
         const file = path.join(dir, `${at.slice(0, 7)}.jsonl`);
@@ -164,11 +170,11 @@ async function main() {
     });
     tags.forEach(writeIndex);
     if (last && last !== state.lastId) writeJson(STATE, { ...state, lastId: last, lastAt: timeOf(last) });
-    console.log(`Read ${stats.read} messages: ${stats.reports} reports, ${stats.stored} stored, ${stats.repeats} already stored, ${stats.invalid} invalid, ${stats.unregistered} unregistered tags, ${stats.overLimit} over the daily limit.`);
+    console.log(`Read ${stats.read} messages: ${stats.reports} reports, ${stats.stored} stored, ${stats.repeats} already stored, ${stats.invalid} invalid, ${stats.unregistered} unregistered tags, ${stats.overLimit} over the daily limit, ${stats.blocked} from blocked names.`);
   } finally {
     client.destroy();
   }
 }
 
 if (require.main === module) main().catch((e) => { console.error(e.message || e); process.exit(1); });
-module.exports = { senderTag, snowflakeAt, timeOf, main };
+module.exports = { snowflakeAt, timeOf, main };

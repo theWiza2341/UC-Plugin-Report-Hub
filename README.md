@@ -4,12 +4,13 @@ Undercards userscripts can let their players send short reports (a bug, a wrong 
 
 - **Players:** press a button in their script. Room 0 opens with the report typed in, and they press Enter.
 - **Script developers:** see [SPEC.md](SPEC.md). In short: get a tag, paste one helper file, and read your reports from this repo. You don't need a bot, a token or any access to anything.
-- **Privacy:** messages without a registered tag are read and thrown away, never stored or logged. Reports are stored without usernames: each sender gets a tag that differs per project.
+- **What's kept:** only messages with a registered tag. Everything else in void is read and thrown away, never stored or logged. Each report is stored with the sender's name as the chat log shows it, so spam can be traced and blocked.
 
 | Path | What it is |
 |---|---|
 | `registry.json` | The registered projects (tag, name, repo, contact). |
 | `reports/<TAG>/` | Each project's reports: `index.json` and one `YYYY-MM.jsonl` per month. |
+| `blocklist.json` | Names whose reports are dropped, for every project or one tag. |
 | `state.json` | The last log message read, so each run starts where the last one stopped. |
 | `bot/` | The collector (`collect.js`), the format rules (`format.js`) and how the log is read (`log-format.js`). |
 | `client/uc-report.js` | The helper scripts paste in. |
@@ -26,7 +27,6 @@ Undercards userscripts can let their players send short reports (a bug, a wrong 
    - In the chat-log server, the server owner limits the bot to the void channel with channel overrides: deny View Channel on everything else, or give it a role that can only see void.
 3. **Repo settings** → Secrets and variables → Actions:
    - Secret `BOT_TOKEN`: the bot token.
-   - Secret `HUB_SALT`: any long random text, 16 characters or more. Never change it, or every sender tag changes.
    - Variable `VOID_CHANNEL_ID`: the void channel's id. In Discord, turn on Developer Mode, then right-click the channel → Copy Channel ID.
 4. **Probe first:** Actions → Collect reports → Run workflow, with **probe** ticked. The log shows the newest messages' layout with letters shown as `x` and digits as `9`, so nothing readable ends up in the public log.
    - Each line's `read` field shows how the bot understood it: `sender` should be the player's name and `text` their message.
@@ -38,6 +38,7 @@ Undercards userscripts can let their players send short reports (a bug, a wrong 
 
 - The format checks in `bot/format.js` (see SPEC.md): 250 characters, safe characters, no links, registered tag.
 - **30 reports per player per project per day.** Extra ones are dropped.
+- **Blocklist:** add a name to `blocklist.json` under `"all"` or under a project's tag, and their reports are dropped from the next run on. Reports already stored stay until you delete those lines by hand.
 - Nothing is ever deleted yet. Old months can be removed later by deleting their `.jsonl` file and re-running.
 
 ## Adding a project

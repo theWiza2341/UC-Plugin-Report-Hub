@@ -6,8 +6,7 @@
 //   id       Discord message id (unique; use it to skip repeats)
 //   at       when it was posted (ISO time)
 //   v        your format version (the digit after your tag)
-//   from     sender tag: the same player always gets the same one in YOUR
-//            project, a different one in other projects; never their name
+//   from     the sender's name, as the chat log shows it
 //   payload  exactly what your script put after "#XX1 "
 
 const fs = require("fs");
