@@ -10,9 +10,11 @@
 //   └──── marks a report
 //
 // Whole message at most 250 characters (Undercards cuts longer ones without
-// warning), so the payload is at most 245. Only characters the 2026-10-08
-// chat probe showed arrive unchanged, and nothing that looks like a link
-// (the chat drops messages with links).
+// warning), so the payload is at most 245. No links (the chat drops messages
+// with links) and no control characters. Any other text is accepted, so
+// players can write a bug report in their own words; SAFE_RE is the set the
+// 2026-10-08 chat probe showed arrive unchanged, for structured payloads
+// (client/uc-report.js checks it when a script builds the payload itself).
 
 const MAX_MESSAGE = 250;
 const MAX_PAYLOAD = 245;
@@ -28,7 +30,7 @@ function parseReport(text) {
   if (!m) return { error: "no #XX1 header" };
   const payload = m[3];
   if (payload.length > MAX_PAYLOAD) return { error: "payload longer than 245 characters" };
-  if (!SAFE_RE.test(payload)) return { error: "characters outside the safe set" };
+  if (/[\u0000-\u001f\u007f]/.test(payload)) return { error: "control characters" };
   if (LINK_RE.test(payload)) return { error: "looks like a link" };
   return { tag: m[1], version: Number(m[2]), payload };
 }

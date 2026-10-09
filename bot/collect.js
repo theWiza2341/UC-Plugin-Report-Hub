@@ -30,6 +30,10 @@ const REPORTS = path.join(ROOT, "reports");
 const STATE = path.join(ROOT, "state.json");
 const DISCORD_EPOCH = 1420070400000n;
 const PER_SENDER_PER_DAY = 30; // per project
+// Bursts: at most 3 reports from one sender (per project) in any 5 minutes;
+// the rest of a burst is dropped. Room for a few report lines in a row.
+const BURST_WINDOW_MS = 5 * 60 * 1000;
+const BURST_MAX = 3;
 
 const arg = (name) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const flag = (name) => process.argv.includes(`--${name}`);
@@ -81,23 +85,36 @@ async function probe(channel) {
   });
 }
 
-// Ids already stored for a tag; also counts them towards each sender's daily cap.
-function loadIds(dir, perDay) {
-  const ids = new Set();
-  if (!fs.existsSync(dir)) return ids;
+const sameText = (payload) => String(payload).toLowerCase().replace(/\s+/g, " ").trim();
+
+// What's already stored for a tag: ids, each sender's texts and times. Also
+// counts stored reports towards each sender's daily cap.
+function loadTag(dir, perDay) {
+  const t = { ids: new Set(), texts: new Set(), times: new Map() };
+  if (!fs.existsSync(dir)) return t;
   fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).forEach((f) => {
     fs.readFileSync(path.join(dir, f), "utf8").split("\n").forEach((l) => {
       try {
         if (!l) return;
         const r = JSON.parse(l);
-        ids.add(r.id);
+        remember(t, r);
         const k = `${r.tag}|${nameKey(r.from)}|${String(r.at).slice(0, 10)}`;
         perDay.set(k, (perDay.get(k) || 0) + 1);
       } catch (e) { /* skip */ }
     });
   });
-  return ids;
+  return t;
 }
+
+function remember(t, r) {
+  t.ids.add(r.id);
+  t.texts.add(`${nameKey(r.from)}|${sameText(r.payload)}`);
+  const who = nameKey(r.from);
+  if (!t.times.has(who)) t.times.set(who, []);
+  t.times.get(who).push(Date.parse(r.at));
+}
+
+const tooSoon = (t, who, ms) => (t.times.get(who) || []).filter((x) => Math.abs(x - ms) < BURST_WINDOW_MS).length >= BURST_MAX;
 
 function writeIndex(tag) {
   const dir = path.join(REPORTS, tag);
@@ -128,9 +145,9 @@ async function main() {
     const after = since ? snowflakeAt(since) : state.lastId || snowflakeAt(earliest);
     console.log(since ? `Backfill from ${since}.` : state.lastId ? `Reading after message ${state.lastId} (${timeOf(state.lastId)}).` : `First run: reading from ${earliest}.`);
 
-    const seen = new Map(); // tag -> Set of stored ids
+    const seen = new Map(); // tag -> what's stored (loadTag)
     const perDay = new Map();
-    const stats = { read: 0, reports: 0, stored: 0, repeats: 0, unregistered: 0, invalid: 0, overLimit: 0, blocked: 0 };
+    const stats = { read: 0, reports: 0, stored: 0, repeats: 0, unregistered: 0, invalid: 0, overLimit: 0, blocked: 0, sameText: 0, burst: 0 };
     const add = new Map(); // file -> lines
     let last = state.lastId;
 
@@ -146,18 +163,22 @@ async function main() {
         // One log post can hold several chat lines: the first keeps the post's id.
         const id = i ? `${m.id}.${i}` : m.id;
         const dir = path.join(REPORTS, r.tag);
-        if (!seen.has(r.tag)) seen.set(r.tag, loadIds(dir, perDay));
-        if (seen.get(r.tag).has(id)) { stats.repeats++; return; }
+        if (!seen.has(r.tag)) seen.set(r.tag, loadTag(dir, perDay));
+        const store = seen.get(r.tag);
+        if (store.ids.has(id)) { stats.repeats++; return; }
         const at = timeOf(m.id);
         const from = String(msg.sender || "?").trim();
         if (blocked(r.tag, from)) { stats.blocked++; return; }
+        const who = nameKey(from);
+        if (store.texts.has(`${who}|${sameText(r.payload)}`)) { stats.sameText++; return; }
+        if (tooSoon(store, who, Date.parse(at))) { stats.burst++; return; }
         const dayKey = `${r.tag}|${nameKey(from)}|${at.slice(0, 10)}`;
         perDay.set(dayKey, (perDay.get(dayKey) || 0) + 1);
         if (perDay.get(dayKey) > PER_SENDER_PER_DAY) { stats.overLimit++; return; }
         const file = path.join(dir, `${at.slice(0, 7)}.jsonl`);
         if (!add.has(file)) add.set(file, []);
         add.get(file).push(JSON.stringify({ id, at, tag: r.tag, v: r.version, from, payload: r.payload }));
-        seen.get(r.tag).add(id);
+        remember(store, { id, at, from, payload: r.payload });
         stats.stored++;
       });
     }
@@ -170,7 +191,7 @@ async function main() {
     });
     tags.forEach(writeIndex);
     if (last && last !== state.lastId) writeJson(STATE, { ...state, lastId: last, lastAt: timeOf(last) });
-    console.log(`Read ${stats.read} messages: ${stats.reports} reports, ${stats.stored} stored, ${stats.repeats} already stored, ${stats.invalid} invalid, ${stats.unregistered} unregistered tags, ${stats.overLimit} over the daily limit, ${stats.blocked} from blocked names.`);
+    console.log(`Read ${stats.read} messages: ${stats.reports} reports, ${stats.stored} stored, ${stats.repeats} already stored, ${stats.invalid} invalid, ${stats.unregistered} unregistered tags, ${stats.overLimit} over the daily limit, ${stats.blocked} from blocked names, ${stats.sameText} repeated texts, ${stats.burst} in a burst (over 3 in 5 minutes).`);
   } finally {
     client.destroy();
   }

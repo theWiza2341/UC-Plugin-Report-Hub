@@ -4,6 +4,8 @@
 //   if (r.ok) UCReport.openVoid(r.message);   // room 0, code typed in: the player presses Enter
 //   else console.warn(r.error);
 //
+//   UCReport.openVoid("#WZ1 <describe the bug here>", "<describe the bug here>")
+//        // a written report: the prompt is selected, so typing replaces it
 //   UCReport.check("#WZ1 261008 161@28.0")   // -> { ok, tag, version, payload } or { ok: false, error }
 //   UCReport.fit("WZ", 1, ["161@28.0", "20@PA", ...], "261008")
 //        // -> messages of at most 250 characters, each a complete report on its own
@@ -56,7 +58,8 @@ const UCReport = (() => {
   }
 
   // Opens room 0 (the "void" room) with the message typed in, ready for Enter.
-  function openVoid(message) {
+  // `select`: part of the message to select (a prompt the player types over).
+  function openVoid(message, select) {
     const w = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
     if (typeof w.openRoom === "function" && !document.querySelector("#chat-public-0")) w.openRoom(0);
     let tries = 0;
@@ -65,6 +68,9 @@ const UCReport = (() => {
       if (!input) { if (++tries < 40) setTimeout(fill, 100); return; }
       input.value = message;
       input.focus();
+      const at = select ? message.indexOf(select) : -1;
+      if (at >= 0) input.setSelectionRange(at, at + select.length);
+      else input.setSelectionRange(message.length, message.length);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     };
     fill();

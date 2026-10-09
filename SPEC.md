@@ -14,11 +14,11 @@ A report is one ordinary Undercards chat message, posted by the player in room 0
 | `WZ` | Your project's tag: 2 capital letters, listed in `registry.json`. |
 | `1` | Your own format version, one digit. Change it when you change your payload format, so old and new reports can be told apart. |
 | space | Exactly one. |
-| payload | Everything after the space. Yours to design. |
+| payload | Everything after the space. Yours to design: structured data your script builds, or text the player writes. |
 
 **Limits** (measured in Undercards chat, 2026-10-08):
 - **250 characters for the whole message.** The chat cuts longer messages without warning. With the 5-character header, that leaves **245 for the payload**.
-- **Safe characters only:** `A–Z a–z 0–9`, space, and `- _ . , ; : ! ? # % ( ) [ ] { } | \ @ + / =`. Anything else may be changed or dropped on the way.
+- **Characters:** any text is accepted. For data your script builds, stick to the characters the chat is known to keep unchanged: `A–Z a–z 0–9`, space, and `- _ . , ; : ! ? # % ( ) [ ] { } | \ @ + / =`. `UCReport.compose` checks this for you. Text players write themselves can use anything.
 - **Nothing that looks like a link.** The chat drops messages with links, so `://`, `www.` and domain names are rejected.
 - **One message is one complete report.** Chat has a cooldown, and players may stop halfway, so the hub never joins messages together. If you have more to say, send another complete message.
 
@@ -45,9 +45,9 @@ reports/WZ/2026-10.jsonl
 | `from` | The sender's name, as the chat log shows it. Reports are public, and so are the names on them. |
 | `payload` | Exactly what came after `#XX1 `. |
 
-The files update once a day, at about 07:20 UTC. Read them from `https://raw.githubusercontent.com/<hub repo>/main/reports/<TAG>/`.
+The files update every 6 hours, at about 00:20, 06:20, 12:20 and 18:20 UTC. Read them from `https://raw.githubusercontent.com/<hub repo>/main/reports/<TAG>/`.
 
-**Limits per player:** 30 reports a day per project. More than that is dropped. Names on the hub's `blocklist.json` (for every project, or just yours) are dropped too. Ask the hub owner to add a name.
+**Limits per player, per project:** 30 reports a day; at most 3 in any 5 minutes; the same text twice is kept once. More than that is dropped. Names on the hub's `blocklist.json` (for every project, or just yours) are dropped too. Ask the hub owner to add a name.
 
 ## Joining
 

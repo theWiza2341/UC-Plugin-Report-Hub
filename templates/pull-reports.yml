@@ -7,7 +7,7 @@ name: Pull reports from the UC report hub
 
 on:
   schedule:
-    - cron: "47 8 * * *" # daily, after the hub's 07:17 UTC run
+    - cron: "47 */6 * * *" # every 6 hours, 30 minutes after the hub's runs
   workflow_dispatch:
 
 permissions:
