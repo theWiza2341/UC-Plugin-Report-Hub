@@ -17,23 +17,6 @@ Undercards userscripts can let their players send short reports (a bug, a wrong 
 | `templates/` | An optional workflow and script for projects that want reports copied into their own repo. |
 | `.github/workflows/collect.yml` | The daily run. |
 
-## Setting it up (owner)
-
-1. **Create the repo** (public) and upload these files. Then go to Settings → Actions → General → Workflow permissions → **Read and write permissions**.
-2. **The Discord bot**, in the [Developer Portal](https://discord.com/developers/applications). Whoever owns the app can reset its token at any time.
-   - Create an application, open **Bot**, and turn on **Message Content Intent**. Leave the other privileged intents off.
-   - Copy the token.
-   - Invite link, replacing `APP_ID` with the application's id: `https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot&permissions=66560`. That's **View Channel + Read Message History** only: no sending, reacting or managing anything.
-   - In the chat-log server, the server owner limits the bot to the void channel with channel overrides: deny View Channel on everything else, or give it a role that can only see void.
-3. **Repo settings** → Secrets and variables → Actions:
-   - Secret `BOT_TOKEN`: the bot token.
-   - Variable `VOID_CHANNEL_ID`: the void channel's id. In Discord, turn on Developer Mode, then right-click the channel → Copy Channel ID.
-4. **Probe first:** Actions → Collect reports → Run workflow, with **probe** ticked. The log shows the newest messages' layout with letters shown as `x` and digits as `9`, so nothing readable ends up in the public log.
-   - Each line's `read` field shows how the bot understood it: `sender` should be the player's name and `text` their message.
-   - If it's wrong, adjust `bot/log-format.js`. The masked lines are enough to work out the pattern.
-5. **Go live:** run it once without probe. The first run reads from the earliest `since` date in `registry.json`. After that it runs daily on its own.
-   - To re-read a period, run it with **since** set (`YYYY-MM-DD`). Reports already stored are skipped.
-
 ## Rules the bot applies
 
 - The format checks in `bot/format.js` (see SPEC.md): 250 characters, safe characters, no links, registered tag.
